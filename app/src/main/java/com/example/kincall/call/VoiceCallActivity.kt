@@ -84,7 +84,7 @@ class VoiceCallActivity : ComponentActivity() {
     private val app by lazy { application as KinCallApp }
 
     /** 对话状态 */
-    private var callState by mutableStateOf(CallState.Idle)
+    private var callState: CallState by mutableStateOf(CallState.Idle)
 
     /** 当前识别的文本 */
     private var recognizedText by mutableStateOf("")
