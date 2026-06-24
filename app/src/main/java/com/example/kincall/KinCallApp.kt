@@ -3,7 +3,7 @@ package com.example.kincall
 import android.app.Application
 import com.example.kincall.asr.AsrClient
 import com.example.kincall.asr.XfAsrClient
-import com.example.kincall.call.ConversationManager
+import com.example.kincall.llm.ConversationManager
 import com.example.kincall.data.KinCallDatabase
 import com.example.kincall.data.repository.ContactRepository
 import com.example.kincall.intent.IntentMatcher
