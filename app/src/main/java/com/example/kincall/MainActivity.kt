@@ -25,25 +25,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.kincall.asrtest.AsrTestActivity
 import com.example.kincall.call.VoiceCallActivity
+import com.example.kincall.ui.contact.ContactEditScreen
+import com.example.kincall.ui.contact.ContactListScreen
 import com.example.kincall.ui.theme.KinCallTheme
 
 /**
  * 主界面 Activity
  *
- * 提供三个主要入口：
- * 1. 语音拨号 - 核心功能，启动 VoiceCallActivity
- * 2. 亲情通讯录 - 管理联系人
- * 3. ASR 测试 - 测试语音识别
- *
- * UI 设计为大字体、大按钮，适合老年人使用。
+ * 使用 Compose Navigation 管理页面导航：
+ * - "main" → 主页（三个入口按钮）
+ * - "contacts" → 联系人列表
+ * - "contact_add" → 添加联系人
+ * - "contact_edit/{id}" → 编辑联系人
  */
 class MainActivity : ComponentActivity() {
 
@@ -52,20 +55,61 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             KinCallTheme {
+                val navController = rememberNavController()
+                val app = application as KinCallApp
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    MainScreen(
-                        modifier = Modifier.padding(innerPadding),
-                        onVoiceCallClick = {
-                            startActivity(Intent(this, VoiceCallActivity::class.java))
-                        },
-                        onContactListClick = {
-                            // TODO: 导航到联系人列表页面
-                            // startActivity(Intent(this, ContactListActivity::class.java))
-                        },
-                        onAsrTestClick = {
-                            startActivity(Intent(this, AsrTestActivity::class.java))
+                    NavHost(
+                        navController = navController,
+                        startDestination = "main",
+                        modifier = Modifier.padding(innerPadding)
+                    ) {
+                        // 主页
+                        composable("main") {
+                            MainScreen(
+                                onVoiceCallClick = {
+                                    startActivity(Intent(this@MainActivity, VoiceCallActivity::class.java))
+                                },
+                                onContactListClick = {
+                                    navController.navigate("contacts")
+                                },
+                                onAsrTestClick = {
+                                    startActivity(Intent(this@MainActivity, AsrTestActivity::class.java))
+                                }
+                            )
                         }
-                    )
+
+                        // 联系人列表
+                        composable("contacts") {
+                            ContactListScreen(
+                                onBack = { navController.popBackStack() },
+                                onAddContact = { navController.navigate("contact_add") },
+                                onEditContact = { contactId ->
+                                    navController.navigate("contact_edit/$contactId")
+                                },
+                                app = app
+                            )
+                        }
+
+                        // 添加联系人
+                        composable("contact_add") {
+                            ContactEditScreen(
+                                contactId = null,
+                                onBack = { navController.popBackStack() },
+                                app = app
+                            )
+                        }
+
+                        // 编辑联系人
+                        composable("contact_edit/{contactId}") { backStackEntry ->
+                            val contactId = backStackEntry.arguments?.getString("contactId")?.toLongOrNull()
+                            ContactEditScreen(
+                                contactId = contactId,
+                                onBack = { navController.popBackStack() },
+                                app = app
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -74,11 +118,6 @@ class MainActivity : ComponentActivity() {
 
 /**
  * 主界面 Composable
- *
- * @param modifier 修饰符
- * @param onVoiceCallClick 语音拨号按钮点击回调
- * @param onContactListClick 亲情通讯录按钮点击回调
- * @param onAsrTestClick ASR测试按钮点击回调
  */
 @Composable
 fun MainScreen(
@@ -95,16 +134,6 @@ fun MainScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // 应用图标（使用 Material Icons 的 Phone 图标）
-        Icon(
-            painter = painterResource(id = android.R.drawable.ic_menu_call),
-            contentDescription = "小帮拨号",
-            modifier = Modifier.size(80.dp),
-            tint = Color(0xFF4CAF50)
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         // 应用标题
         Text(
             text = "小帮拨号",
@@ -123,22 +152,16 @@ fun MainScreen(
 
         Spacer(modifier = Modifier.height(60.dp))
 
-        // 主按钮：语音拨号（最大、最醒目）
+        // 主按钮：语音拨号
         Button(
             onClick = onVoiceCallClick,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(80.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF4CAF50)  // 绿色，表示"开始"
-            )
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
         ) {
-            Text(
-                text = "🎤 语音拨号",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = "🎤 语音拨号", fontSize = 28.sp, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -150,15 +173,9 @@ fun MainScreen(
                 .fillMaxWidth()
                 .height(64.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF2196F3)  // 蓝色
-            )
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
         ) {
-            Text(
-                text = "📒 亲情通讯录",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Text(text = "📒 亲情通讯录", fontSize = 24.sp, fontWeight = FontWeight.Medium)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -170,23 +187,9 @@ fun MainScreen(
                 .fillMaxWidth()
                 .height(64.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFFF9800)  // 橙色，表示测试功能
-            )
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
         ) {
-            Text(
-                text = "🔧 ASR 测试",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Text(text = "🔧 ASR 测试", fontSize = 24.sp, fontWeight = FontWeight.Medium)
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun MainScreenPreview() {
-    KinCallTheme {
-        MainScreen()
     }
 }
