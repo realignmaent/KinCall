@@ -104,7 +104,7 @@ class AsrTestActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             tts?.language = Locale.CHINESE
-            tts?.speechRate = 0.8f  // 稍慢的语速，方便老年人听清
+            tts?.setSpeechRate(0.8f)  // 稍慢的语速，方便老年人听清
             ttsReady = true
             Log.d(TAG, "TTS 初始化成功")
         } else {
@@ -255,7 +255,7 @@ class AsrTestActivity : ComponentActivity(), TextToSpeech.OnInitListener {
             Spacer(modifier = Modifier.height(8.dp))
 
             // 分隔线
-            Divider(color = Color(0xFFDDDDDD))
+            HorizontalDivider(color = Color(0xFFDDDDDD))
 
             Spacer(modifier = Modifier.height(8.dp))
 

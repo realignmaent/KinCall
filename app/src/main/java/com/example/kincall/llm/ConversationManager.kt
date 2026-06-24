@@ -79,7 +79,43 @@ class ConversationManager(
     }
 
     /**
-     * 处理用户语音输入
+     * 处理已识别的用户文本（跳过ASR，直接处理文本）
+     *
+     * 供 VoiceCallActivity 使用，它自己完成 ASR 后调用此方法。
+     *
+     * @param userText 已识别的用户文本
+     * @return 对话结果（拨打电话/需要澄清/取消/错误）
+     */
+    suspend fun processUserText(userText: String): ConversationResult {
+        return try {
+            Log.d(TAG, "处理用户文本: $userText")
+
+            if (userText.isBlank()) {
+                return ConversationResult.Error("没听清 您能再说一遍吗")
+            }
+
+            // 检查是否在等待确认状态
+            if (state.isWaitingConfirm && state.currentContact != null) {
+                return handleConfirmation(userText)
+            }
+
+            // 尝试快速路径（IntentMatcher直接匹配）
+            val quickMatch = tryQuickMatch(userText)
+            if (quickMatch != null) {
+                return quickMatch
+            }
+
+            // 走LLM理解路径
+            return processWithLLM(userText)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "处理文本失败: ${e.message}")
+            ConversationResult.Error("出了点问题 您能再说一遍吗")
+        }
+    }
+
+    /**
+     * 处理用户语音输入（内部包含ASR识别）
      *
      * 完整流程：
      * 1. 录音并ASR识别

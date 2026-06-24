@@ -44,7 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.painterResource  // may be unused
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -96,7 +96,7 @@ class VoiceCallActivity : ComponentActivity() {
     private var statusMessage by mutableStateOf("")
 
     /** 对话历史记录 */
-    private val conversationHistory = mutableStateListOf<ChatMessage>()
+    private val conversationHistory = mutableStateListOf<UiChatMessage>()
 
     /** 电话权限请求 */
     private val phonePermissionLauncher = registerForActivityResult(
@@ -167,7 +167,7 @@ class VoiceCallActivity : ComponentActivity() {
         recognizedText = ""
         matchedContact = null
         statusMessage = "正在听您说..."
-        addMessage(ChatMessage.Role.SYSTEM, "正在听您说...")
+        addMessage(UiChatMessage.Role.SYSTEM, "正在听您说...")
 
         lifecycleScope.launch {
             try {
@@ -181,7 +181,7 @@ class VoiceCallActivity : ComponentActivity() {
                     Log.e(TAG, "ASR failed: $error")
                     callState = CallState.Error(error)
                     statusMessage = error
-                    addMessage(ChatMessage.Role.SYSTEM, "识别失败：$error")
+                    addMessage(UiUiChatMessage.Role.SYSTEM, "识别失败：$error")
                     // TTS 播报错误
                     withContext(Dispatchers.IO) {
                         app.speaker.speak("抱歉，我没听清，请再说一次")
@@ -195,7 +195,7 @@ class VoiceCallActivity : ComponentActivity() {
                 if (text.isEmpty()) {
                     callState = CallState.Error("未识别到语音")
                     statusMessage = "未识别到语音"
-                    addMessage(ChatMessage.Role.SYSTEM, "未识别到语音")
+                    addMessage(UiUiChatMessage.Role.SYSTEM, "未识别到语音")
                     withContext(Dispatchers.IO) {
                         app.speaker.speak("我没有听到声音，请再说一次")
                     }
@@ -206,7 +206,7 @@ class VoiceCallActivity : ComponentActivity() {
 
                 // 显示识别结果
                 recognizedText = text
-                addMessage(ChatMessage.Role.USER, text)
+                addMessage(UiUiChatMessage.Role.USER, text)
                 callState = CallState.Processing
                 statusMessage = "正在理解..."
 
@@ -217,7 +217,7 @@ class VoiceCallActivity : ComponentActivity() {
                 Log.e(TAG, "Error in startListening", e)
                 callState = CallState.Error(e.message ?: "未知错误")
                 statusMessage = "出错了：${e.message}"
-                addMessage(ChatMessage.Role.SYSTEM, "出错了：${e.message}")
+                addMessage(UiUiChatMessage.Role.SYSTEM, "出错了：${e.message}")
             }
         }
     }
@@ -229,7 +229,7 @@ class VoiceCallActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
-                    app.conversationManager.processUserSpeech(userText)
+                    app.conversationManager.processUserText(userText)
                 }
 
                 when (result) {
@@ -238,7 +238,7 @@ class VoiceCallActivity : ComponentActivity() {
                         matchedContact = result.contact
                         callState = CallState.Confirming
                         statusMessage = "确认拨打 ${result.contact.name}？"
-                        addMessage(ChatMessage.Role.ASSISTANT, "好的，正在拨打给${result.contact.name}")
+                        addMessage(UiChatMessage.Role.ASSISTANT, "好的，正在拨打给${result.contact.name}")
 
                         // 自动确认（MVP版本，后续可改为等待用户确认）
                         delay(1500)
@@ -248,7 +248,7 @@ class VoiceCallActivity : ComponentActivity() {
                     is ConversationResult.NeedClarification -> {
                         // 需要用户澄清
                         statusMessage = result.llmReply
-                        addMessage(ChatMessage.Role.ASSISTANT, result.llmReply)
+                        addMessage(UiChatMessage.Role.ASSISTANT, result.llmReply)
 
                         // TTS 播报澄清问题
                         withContext(Dispatchers.IO) {
@@ -266,7 +266,7 @@ class VoiceCallActivity : ComponentActivity() {
                     is ConversationResult.Cancelled -> {
                         // 用户取消
                         statusMessage = "已取消"
-                        addMessage(ChatMessage.Role.ASSISTANT, "好的，已取消")
+                        addMessage(UiChatMessage.Role.ASSISTANT, "好的，已取消")
                         withContext(Dispatchers.IO) {
                             app.speaker.speak("好的，已取消")
                         }
@@ -277,7 +277,7 @@ class VoiceCallActivity : ComponentActivity() {
                     is ConversationResult.Error -> {
                         callState = CallState.Error(result.message)
                         statusMessage = result.message
-                        addMessage(ChatMessage.Role.SYSTEM, "错误：${result.message}")
+                        addMessage(UiChatMessage.Role.SYSTEM, "错误：${result.message}")
                         withContext(Dispatchers.IO) {
                             app.speaker.speak("抱歉，出了点问题，请再试一次")
                         }
@@ -290,7 +290,7 @@ class VoiceCallActivity : ComponentActivity() {
                 Log.e(TAG, "Error processing with ConversationManager", e)
                 callState = CallState.Error(e.message ?: "处理失败")
                 statusMessage = "处理失败：${e.message}"
-                addMessage(ChatMessage.Role.SYSTEM, "处理失败：${e.message}")
+                addMessage(UiChatMessage.Role.SYSTEM, "处理失败：${e.message}")
             }
         }
     }
@@ -302,7 +302,7 @@ class VoiceCallActivity : ComponentActivity() {
         matchedContact = contact
         callState = CallState.Dialing
         statusMessage = "正在拨打 ${contact.name}..."
-        addMessage(ChatMessage.Role.SYSTEM, "正在拨打 ${contact.name}（${contact.phone}）")
+        addMessage(UiChatMessage.Role.SYSTEM, "正在拨打 ${contact.name}（${contact.phone}）")
 
         // 检查电话权限
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
@@ -349,7 +349,7 @@ class VoiceCallActivity : ComponentActivity() {
             Log.e(TAG, "Failed to make call", e)
             callState = CallState.Error("拨号失败：${e.message}")
             statusMessage = "拨号失败"
-            addMessage(ChatMessage.Role.SYSTEM, "拨号失败：${e.message}")
+            addMessage(UiChatMessage.Role.SYSTEM, "拨号失败：${e.message}")
         }
     }
 
@@ -385,8 +385,8 @@ class VoiceCallActivity : ComponentActivity() {
     /**
      * 添加对话消息
      */
-    private fun addMessage(role: ChatMessage.Role, content: String) {
-        conversationHistory.add(ChatMessage(role, content))
+    private fun addMessage(role: UiUiChatMessage.Role, content: String) {
+        conversationHistory.add(UiChatMessage(role, content))
         // 只保留最近 20 条消息
         if (conversationHistory.size > 20) {
             conversationHistory.removeAt(0)
@@ -422,7 +422,7 @@ enum class CallState {
 /**
  * 对话消息数据类
  */
-data class ChatMessage(
+data class UiChatMessage(
     val role: Role,
     val content: String,
     val timestamp: Long = System.currentTimeMillis()
@@ -444,7 +444,7 @@ fun VoiceCallScreen(
     recognizedText: String = "",
     matchedContact: Contact? = null,
     statusMessage: String = "",
-    conversationHistory: List<ChatMessage> = emptyList(),
+    conversationHistory: List<UiChatMessage> = emptyList(),
     onMicClick: () -> Unit = {},
     onConfirmCall: () -> Unit = {},
     onCancel: () -> Unit = {}
@@ -646,11 +646,11 @@ fun ConfirmCallArea(
  * 对话气泡
  */
 @Composable
-fun ChatBubble(message: ChatMessage) {
+fun ChatBubble(message: UiChatMessage) {
     val (bgColor, textColor, alignment) = when (message.role) {
-        ChatMessage.Role.USER -> Triple(Color(0xFF2196F3), Color.White, Alignment.End)
-        ChatMessage.Role.ASSISTANT -> Triple(Color(0xFF3D3D5C), Color.White, Alignment.Start)
-        ChatMessage.Role.SYSTEM -> Triple(Color(0xFF2D2D44), Color(0xFFAAAAAA), Alignment.Center)
+        UiChatMessage.Role.USER -> Triple(Color(0xFF2196F3), Color.White, Alignment.End)
+        UiChatMessage.Role.ASSISTANT -> Triple(Color(0xFF3D3D5C), Color.White, Alignment.Start)
+        UiChatMessage.Role.SYSTEM -> Triple(Color(0xFF2D2D44), Color(0xFFAAAAAA), Alignment.Center)
     }
 
     Column(
