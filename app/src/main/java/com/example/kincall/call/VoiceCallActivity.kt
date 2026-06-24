@@ -107,7 +107,7 @@ class VoiceCallActivity : ComponentActivity() {
             matchedContact?.let { makeCall(it.phone) }
         } else {
             statusMessage = "需要电话权限才能拨号"
-            callState = CallState.Error("需要电话权限，请在设置中授权")
+            callState = CallState.CallError("需要电话权限，请在设置中授权")
         }
     }
 
@@ -146,7 +146,7 @@ class VoiceCallActivity : ComponentActivity() {
      */
     private fun onMicButtonClicked() {
         when (callState) {
-            CallState.Idle, CallState.Error -> {
+            CallState.Idle, CallState.CallError -> {
                 startListening()
             }
             CallState.Listening -> {
@@ -179,9 +179,9 @@ class VoiceCallActivity : ComponentActivity() {
                 if (!result.isSuccess) {
                     val error = result.errorMessage ?: "识别失败"
                     Log.e(TAG, "ASR failed: $error")
-                    callState = CallState.Error(error)
+                    callState = CallState.CallError(error)
                     statusMessage = error
-                    addMessage(UiUiChatMessage.Role.SYSTEM, "识别失败：$error")
+                    addMessage(UiChatMessage.Role.SYSTEM, "识别失败：$error")
                     // TTS 播报错误
                     withContext(Dispatchers.IO) {
                         app.speaker.speak("抱歉，我没听清，请再说一次")
@@ -193,9 +193,9 @@ class VoiceCallActivity : ComponentActivity() {
 
                 val text = result.text.trim()
                 if (text.isEmpty()) {
-                    callState = CallState.Error("未识别到语音")
+                    callState = CallState.CallError("未识别到语音")
                     statusMessage = "未识别到语音"
-                    addMessage(UiUiChatMessage.Role.SYSTEM, "未识别到语音")
+                    addMessage(UiChatMessage.Role.SYSTEM, "未识别到语音")
                     withContext(Dispatchers.IO) {
                         app.speaker.speak("我没有听到声音，请再说一次")
                     }
@@ -206,7 +206,7 @@ class VoiceCallActivity : ComponentActivity() {
 
                 // 显示识别结果
                 recognizedText = text
-                addMessage(UiUiChatMessage.Role.USER, text)
+                addMessage(UiChatMessage.Role.USER, text)
                 callState = CallState.Processing
                 statusMessage = "正在理解..."
 
@@ -215,9 +215,9 @@ class VoiceCallActivity : ComponentActivity() {
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error in startListening", e)
-                callState = CallState.Error(e.message ?: "未知错误")
+                callState = CallState.CallError(e.message ?: "未知错误")
                 statusMessage = "出错了：${e.message}"
-                addMessage(UiUiChatMessage.Role.SYSTEM, "出错了：${e.message}")
+                addMessage(UiChatMessage.Role.SYSTEM, "出错了：${e.message}")
             }
         }
     }
@@ -275,7 +275,7 @@ class VoiceCallActivity : ComponentActivity() {
                     }
 
                     is ConversationResult.Error -> {
-                        callState = CallState.Error(result.message)
+                        callState = CallState.CallError(result.message)
                         statusMessage = result.message
                         addMessage(UiChatMessage.Role.SYSTEM, "错误：${result.message}")
                         withContext(Dispatchers.IO) {
@@ -288,7 +288,7 @@ class VoiceCallActivity : ComponentActivity() {
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing with ConversationManager", e)
-                callState = CallState.Error(e.message ?: "处理失败")
+                callState = CallState.CallError(e.message ?: "处理失败")
                 statusMessage = "处理失败：${e.message}"
                 addMessage(UiChatMessage.Role.SYSTEM, "处理失败：${e.message}")
             }
@@ -347,7 +347,7 @@ class VoiceCallActivity : ComponentActivity() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to make call", e)
-            callState = CallState.Error("拨号失败：${e.message}")
+            callState = CallState.CallError("拨号失败：${e.message}")
             statusMessage = "拨号失败"
             addMessage(UiChatMessage.Role.SYSTEM, "拨号失败：${e.message}")
         }
@@ -385,7 +385,7 @@ class VoiceCallActivity : ComponentActivity() {
     /**
      * 添加对话消息
      */
-    private fun addMessage(role: UiUiChatMessage.Role, content: String) {
+    private fun addMessage(role: UiChatMessage.Role, content: String) {
         conversationHistory.add(UiChatMessage(role, content))
         // 只保留最近 20 条消息
         if (conversationHistory.size > 20) {
@@ -416,7 +416,7 @@ enum class CallState {
     /** 正在拨号 */
     Dialing,
     /** 出错 */
-    Error
+    CallError
 }
 
 /**
@@ -522,7 +522,7 @@ fun StatusArea(
             CallState.Processing -> "🤔" to Color(0xFFFFBB33)
             CallState.Confirming -> "✅" to Color(0xFF4CAF50)
             CallState.Dialing -> "📞" to Color(0xFF2196F3)
-            CallState.Error -> "❌" to Color(0xFFFF4444)
+            CallState.CallError -> "❌" to Color(0xFFFF4444)
         }
 
         Text(
@@ -540,7 +540,7 @@ fun StatusArea(
                 CallState.Processing -> "正在理解..."
                 CallState.Confirming -> "确认拨号"
                 CallState.Dialing -> "正在拨打..."
-                CallState.Error -> statusMessage.ifEmpty { "出错了" }
+                CallState.CallError -> statusMessage.ifEmpty { "出错了" }
             },
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
@@ -647,10 +647,18 @@ fun ConfirmCallArea(
  */
 @Composable
 fun ChatBubble(message: UiChatMessage) {
-    val (bgColor, textColor, alignment) = when (message.role) {
-        UiChatMessage.Role.USER -> Triple(Color(0xFF2196F3), Color.White, Alignment.End)
-        UiChatMessage.Role.ASSISTANT -> Triple(Color(0xFF3D3D5C), Color.White, Alignment.Start)
-        UiChatMessage.Role.SYSTEM -> Triple(Color(0xFF2D2D44), Color(0xFFAAAAAA), Alignment.Center)
+    val isUser = message.role == UiChatMessage.Role.USER
+    val isSystem = message.role == UiChatMessage.Role.SYSTEM
+    val bgColor = when (message.role) {
+        UiChatMessage.Role.USER -> Color(0xFF2196F3)
+        UiChatMessage.Role.ASSISTANT -> Color(0xFF3D3D5C)
+        UiChatMessage.Role.SYSTEM -> Color(0xFF2D2D44)
+    }
+    val textColor = if (isSystem) Color(0xFFAAAAAA) else Color.White
+    val alignment = when (message.role) {
+        UiChatMessage.Role.USER -> Alignment.End
+        UiChatMessage.Role.ASSISTANT -> Alignment.Start
+        UiChatMessage.Role.SYSTEM -> Alignment.CenterHorizontally
     }
 
     Column(
@@ -683,7 +691,7 @@ fun MicButton(
     val buttonColor = if (isListening) Color(0xFFFF4444) else Color(0xFF4CAF50)
     val icon = if (isListening) "⏹" else "🎤"
     val label = when (callState) {
-        CallState.Idle, CallState.Error -> "按住说话"
+        CallState.Idle, CallState.CallError -> "按住说话"
         CallState.Listening -> "点击停止"
         CallState.Processing -> "处理中..."
         CallState.Confirming -> "请确认"
@@ -699,7 +707,7 @@ fun MicButton(
         ),
         enabled = callState == CallState.Idle ||
                 callState == CallState.Listening ||
-                callState == CallState.Error
+                callState == CallState.CallError
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally

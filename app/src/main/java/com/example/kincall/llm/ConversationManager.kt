@@ -204,7 +204,7 @@ class ConversationManager(
      * @param userText 用户的确认/否定回复
      * @return 拨打或重新询问
      */
-    private fun handleConfirmation(userText: String): ConversationResult {
+    private suspend fun handleConfirmation(userText: String): ConversationResult {
         val contact = state.currentContact!!
 
         when {

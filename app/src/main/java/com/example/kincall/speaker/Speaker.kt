@@ -314,7 +314,7 @@ class Speaker(private val context: Context) {
             .setAudioAttributes(audioAttributes)
             .setAudioFormat(audioFormat)
             .setBufferSizeInBytes(bufferSize)
-            .setTransferMode(AudioTrack.TRANSFER_MODE_STREAM)
+            .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
 
         audioTrack?.play()

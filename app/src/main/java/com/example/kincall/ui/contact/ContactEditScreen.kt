@@ -213,7 +213,7 @@ fun ContactEditScreen(
 
             // 提示文案
             Text(
-                text = "💡 老人平时怎么叫这个人？比如"老大""大宝""儿子"，都填进来。多填几个匹配更准。",
+                text = "💡 老人平时怎么叫这个人？比如老大、大宝、儿子，都填进来。多填几个匹配更准。",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 18.sp
