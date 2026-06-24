@@ -146,7 +146,7 @@ class VoiceCallActivity : ComponentActivity() {
      */
     private fun onMicButtonClicked() {
         when (callState) {
-            CallState.Idle, CallState.CallError -> {
+            CallState.Idle, is CallState.CallError -> {
                 startListening()
             }
             CallState.Listening -> {
@@ -404,19 +404,19 @@ class VoiceCallActivity : ComponentActivity() {
 /**
  * 拨号状态枚举
  */
-enum class CallState {
+sealed class CallState {
     /** 空闲状态 */
-    Idle,
+    data object Idle : CallState()
     /** 正在录音 */
-    Listening,
+    data object Listening : CallState()
     /** 正在处理（ASR + LLM + 匹配） */
-    Processing,
+    data object Processing : CallState()
     /** 等待用户确认 */
-    Confirming,
+    data object Confirming : CallState()
     /** 正在拨号 */
-    Dialing,
+    data object Dialing : CallState()
     /** 出错 */
-    CallError
+    data class CallError(val message: String) : CallState()
 }
 
 /**
@@ -522,7 +522,7 @@ fun StatusArea(
             CallState.Processing -> "🤔" to Color(0xFFFFBB33)
             CallState.Confirming -> "✅" to Color(0xFF4CAF50)
             CallState.Dialing -> "📞" to Color(0xFF2196F3)
-            CallState.CallError -> "❌" to Color(0xFFFF4444)
+            is CallState.CallError -> "❌" to Color(0xFFFF4444)
         }
 
         Text(
@@ -540,7 +540,7 @@ fun StatusArea(
                 CallState.Processing -> "正在理解..."
                 CallState.Confirming -> "确认拨号"
                 CallState.Dialing -> "正在拨打..."
-                CallState.CallError -> statusMessage.ifEmpty { "出错了" }
+                is CallState.CallError -> statusMessage.ifEmpty { "出错了" }
             },
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
@@ -691,7 +691,7 @@ fun MicButton(
     val buttonColor = if (isListening) Color(0xFFFF4444) else Color(0xFF4CAF50)
     val icon = if (isListening) "⏹" else "🎤"
     val label = when (callState) {
-        CallState.Idle, CallState.CallError -> "按住说话"
+        CallState.Idle, is CallState.CallError -> "按住说话"
         CallState.Listening -> "点击停止"
         CallState.Processing -> "处理中..."
         CallState.Confirming -> "请确认"
@@ -707,7 +707,7 @@ fun MicButton(
         ),
         enabled = callState == CallState.Idle ||
                 callState == CallState.Listening ||
-                callState == CallState.CallError
+                callState is CallState.CallError
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
