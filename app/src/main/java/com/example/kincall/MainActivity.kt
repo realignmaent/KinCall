@@ -8,13 +8,20 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -24,9 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,16 +42,11 @@ import com.example.kincall.asrtest.AsrTestActivity
 import com.example.kincall.call.VoiceCallActivity
 import com.example.kincall.ui.contact.ContactEditScreen
 import com.example.kincall.ui.contact.ContactListScreen
+import com.example.kincall.ui.history.ChatHistoryScreen
 import com.example.kincall.ui.theme.KinCallTheme
 
 /**
  * 主界面 Activity
- *
- * 使用 Compose Navigation 管理页面导航：
- * - "main" → 主页（三个入口按钮）
- * - "contacts" → 联系人列表
- * - "contact_add" → 添加联系人
- * - "contact_edit/{id}" → 编辑联系人
  */
 class MainActivity : ComponentActivity() {
 
@@ -64,7 +64,6 @@ class MainActivity : ComponentActivity() {
                         startDestination = "main",
                         modifier = Modifier.padding(innerPadding)
                     ) {
-                        // 主页
                         composable("main") {
                             MainScreen(
                                 onVoiceCallClick = {
@@ -75,11 +74,13 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onAsrTestClick = {
                                     startActivity(Intent(this@MainActivity, AsrTestActivity::class.java))
+                                },
+                                onChatHistoryClick = {
+                                    navController.navigate("chat_history")
                                 }
                             )
                         }
 
-                        // 联系人列表
                         composable("contacts") {
                             ContactListScreen(
                                 onBack = { navController.popBackStack() },
@@ -91,7 +92,6 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // 添加联系人
                         composable("contact_add") {
                             ContactEditScreen(
                                 contactId = null,
@@ -100,11 +100,18 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        // 编辑联系人
                         composable("contact_edit/{contactId}") { backStackEntry ->
                             val contactId = backStackEntry.arguments?.getString("contactId")?.toLongOrNull()
                             ContactEditScreen(
                                 contactId = contactId,
+                                onBack = { navController.popBackStack() },
+                                app = app
+                            )
+                        }
+
+                        // 聊天记录
+                        composable("chat_history") {
+                            ChatHistoryScreen(
                                 onBack = { navController.popBackStack() },
                                 app = app
                             )
@@ -118,18 +125,24 @@ class MainActivity : ComponentActivity() {
 
 /**
  * 主界面 Composable
+ *
+ * 优化点：
+ * - Emoji → Material Icon
+ * - 硬编码颜色 → MaterialTheme.colorScheme
+ * - 按钮高度 80dp → 88dp，圆角 16dp → 20dp
  */
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
     onVoiceCallClick: () -> Unit = {},
     onContactListClick: () -> Unit = {},
-    onAsrTestClick: () -> Unit = {}
+    onAsrTestClick: () -> Unit = {},
+    onChatHistoryClick: () -> Unit = {}
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5F5))
+            .background(MaterialTheme.colorScheme.background)
             .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -139,57 +152,97 @@ fun MainScreen(
             text = "小帮拨号",
             fontSize = 36.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF333333)
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         // 副标题
         Text(
             text = "说名字，就拨号",
             fontSize = 18.sp,
-            color = Color(0xFF666666),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp)
         )
 
         Spacer(modifier = Modifier.height(60.dp))
 
         // 主按钮：语音拨号
-        Button(
+        MainMenuButton(
+            text = "语音拨号",
+            icon = Icons.Default.Call,
             onClick = onVoiceCallClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-        ) {
-            Text(text = "🎤 语音拨号", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        }
+            containerColor = MaterialTheme.colorScheme.primary,
+            height = 88.dp
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
         // 次要按钮：亲情通讯录
-        Button(
+        MainMenuButton(
+            text = "亲情通讯录",
+            icon = Icons.Default.Contacts,
             onClick = onContactListClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
-        ) {
-            Text(text = "📒 亲情通讯录", fontSize = 24.sp, fontWeight = FontWeight.Medium)
-        }
+            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+            height = 72.dp
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         // 测试按钮：ASR 测试
-        Button(
+        MainMenuButton(
+            text = "ASR 测试",
+            icon = Icons.Default.Build,
             onClick = onAsrTestClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
+            containerColor = MaterialTheme.colorScheme.secondary,
+            height = 72.dp
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 聊天记录按钮
+        MainMenuButton(
+            text = "聊天记录",
+            icon = Icons.Default.History,
+            onClick = onChatHistoryClick,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            height = 56.dp
+        )
+    }
+}
+
+/**
+ * 主菜单按钮组件 - Material Icon + 文字分行显示
+ */
+@Composable
+private fun MainMenuButton(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    containerColor: androidx.compose.ui.graphics.Color,
+    height: androidx.compose.ui.unit.Dp
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height),
+        shape = RoundedCornerShape(20.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = containerColor)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
-            Text(text = "🔧 ASR 测试", fontSize = 24.sp, fontWeight = FontWeight.Medium)
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = text,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }

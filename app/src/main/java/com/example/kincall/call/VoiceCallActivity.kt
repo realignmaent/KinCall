@@ -59,6 +59,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import com.example.kincall.ui.theme.*
 
 /**
  * 语音拨号主界面 Activity
@@ -137,6 +156,18 @@ class VoiceCallActivity : ComponentActivity() {
                         onCancel = { onCancel() }
                     )
                 }
+            }
+        }
+
+        // 启动对话并播报问候语
+        lifecycleScope.launch {
+            val greeting = withContext(Dispatchers.IO) {
+                app.conversationManager.startConversation()
+            }
+            addMessage(UiChatMessage.Role.ASSISTANT, greeting)
+            statusMessage = greeting
+            withContext(Dispatchers.IO) {
+                app.speaker.speak(greeting)
             }
         }
     }
@@ -240,8 +271,13 @@ class VoiceCallActivity : ComponentActivity() {
                         statusMessage = "确认拨打 ${result.contact.name}？"
                         addMessage(UiChatMessage.Role.ASSISTANT, "好的，正在拨打给${result.contact.name}")
 
+                        // TTS 播报确认
+                        withContext(Dispatchers.IO) {
+                            app.speaker.speak("好的 正在拨打给${result.contact.name}")
+                        }
+
                         // 自动确认（MVP版本，后续可改为等待用户确认）
-                        delay(1500)
+                        delay(500)
                         confirmAndCall(result.contact)
                     }
 
@@ -308,21 +344,27 @@ class VoiceCallActivity : ComponentActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
             == PackageManager.PERMISSION_GRANTED
         ) {
-            makeCall(contact.phone)
+            makeCall(contact.phone, contact)
         } else {
             phonePermissionLauncher.launch(Manifest.permission.CALL_PHONE)
         }
     }
 
     /**
-     * 拨打电话
+     * 拨打电话（带联系人信息）
      */
-    private fun makeCall(phone: String) {
+    private fun makeCall(phone: String, contact: Contact? = null) {
         try {
             val intent = Intent(Intent.ACTION_CALL).apply {
                 data = Uri.parse("tel:$phone")
                 // 请求免提
                 putExtra("android.telecom.extra.START_CALL_WITH_SPEAKERPHONE", true)
+            }
+            // 传递联系人信息给通话界面
+            contact?.let {
+                intent.putExtra("contact_name", it.name)
+                intent.putExtra("contact_relation", it.relation ?: "")
+                intent.putExtra("contact_phone", it.phone)
             }
             startActivity(intent)
 
@@ -436,6 +478,14 @@ data class UiChatMessage(
 
 /**
  * 语音拨号界面 Composable
+ *
+ * 优化点：
+ * - 深色背景 → 暖米色背景（老人白天使用不刺眼）
+ * - Emoji → Material Icon
+ * - 硬编码颜色 → 主题色
+ * - 麦克风按钮添加脉冲动画（录音状态反馈）
+ * - 对话气泡适配浅色主题
+ * - 确认拨号区域适配浅色主题
  */
 @Composable
 fun VoiceCallScreen(
@@ -452,7 +502,7 @@ fun VoiceCallScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF1A1A2E))
+            .background(MaterialTheme.colorScheme.background)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -476,7 +526,7 @@ fun VoiceCallScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // 对话历史（占据中间区域）
+        // 对话历史
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -502,7 +552,7 @@ fun VoiceCallScreen(
 }
 
 /**
- * 状态显示区域
+ * 状态显示区域 - Material Icon + 主题色
  */
 @Composable
 fun StatusArea(
@@ -515,33 +565,51 @@ fun StatusArea(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
-        // 状态图标和文字
-        val (icon, statusColor) = when (callState) {
-            CallState.Idle -> "🎙️" to Color(0xFF666666)
-            CallState.Listening -> "🔴" to Color(0xFFFF4444)
-            CallState.Processing -> "🤔" to Color(0xFFFFBB33)
-            CallState.Confirming -> "✅" to Color(0xFF4CAF50)
-            CallState.Dialing -> "📞" to Color(0xFF2196F3)
-            is CallState.CallError -> "❌" to Color(0xFFFF4444)
+        // 状态图标和颜色
+        val (statusText, statusColor, statusIcon) = when (callState) {
+            CallState.Idle -> Triple(
+                "点击麦克风开始说话",
+                MaterialTheme.colorScheme.onSurfaceVariant,
+                Icons.Default.Mic
+            )
+            CallState.Listening -> Triple(
+                "正在听您说...",
+                KinCallListening,
+                Icons.Default.Mic
+            )
+            CallState.Processing -> Triple(
+                "正在理解...",
+                KinCallProcessing,
+                Icons.Default.Search
+            )
+            CallState.Confirming -> Triple(
+                "确认拨号",
+                KinCallConfirming,
+                Icons.Default.CheckCircle
+            )
+            CallState.Dialing -> Triple(
+                "正在拨打...",
+                KinCallDialing,
+                Icons.Default.Phone
+            )
+            is CallState.CallError -> Triple(
+                statusMessage.ifEmpty { "出错了" },
+                MaterialTheme.colorScheme.error,
+                Icons.Default.Error
+            )
         }
 
-        Text(
-            text = icon,
-            fontSize = 48.sp
+        Icon(
+            imageVector = statusIcon,
+            contentDescription = null,
+            modifier = Modifier.size(56.dp),
+            tint = statusColor
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        // 状态文字
         Text(
-            text = when (callState) {
-                CallState.Idle -> "点击麦克风开始说话"
-                CallState.Listening -> "正在听您说..."
-                CallState.Processing -> "正在理解..."
-                CallState.Confirming -> "确认拨号"
-                CallState.Dialing -> "正在拨打..."
-                is CallState.CallError -> statusMessage.ifEmpty { "出错了" }
-            },
+            text = statusText,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             color = statusColor,
@@ -554,7 +622,7 @@ fun StatusArea(
             Text(
                 text = "「$recognizedText」",
                 fontSize = 18.sp,
-                color = Color(0xFFAAAAAA),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
         }
@@ -565,7 +633,7 @@ fun StatusArea(
             Text(
                 text = "→ ${matchedContact.name} ${matchedContact.phone}",
                 fontSize = 16.sp,
-                color = Color(0xFF4CAF50),
+                color = MaterialTheme.colorScheme.primary,
                 textAlign = TextAlign.Center
             )
         }
@@ -573,7 +641,7 @@ fun StatusArea(
 }
 
 /**
- * 确认拨号区域
+ * 确认拨号区域 - 浅色卡片风格
  */
 @Composable
 fun ConfirmCallArea(
@@ -585,29 +653,30 @@ fun ConfirmCallArea(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(4.dp, RoundedCornerShape(20.dp))
             .background(
-                color = Color(0xFF2D2D44),
-                shape = RoundedCornerShape(16.dp)
+                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(20.dp)
             )
-            .padding(16.dp)
+            .padding(20.dp)
     ) {
         Text(
             text = "拨打给 ${contact.name}？",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onSurface
         )
         if (contact.relation != null) {
             Text(
                 text = "（${contact.relation}）",
                 fontSize = 16.sp,
-                color = Color(0xFFAAAAAA)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Text(
             text = contact.phone,
             fontSize = 18.sp,
-            color = Color(0xFF4CAF50)
+            color = MaterialTheme.colorScheme.primary
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -619,22 +688,26 @@ fun ConfirmCallArea(
             Button(
                 onClick = onCancel,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF666666)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1f)
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.weight(1f).height(52.dp)
             ) {
-                Text("取消", fontSize = 18.sp)
+                Text(
+                    "取消",
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             // 确认按钮
             Button(
                 onClick = onConfirm,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF4CAF50)
+                    containerColor = MaterialTheme.colorScheme.primary
                 ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.weight(1f)
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.weight(1f).height(52.dp)
             ) {
                 Text("拨打", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
@@ -643,23 +716,30 @@ fun ConfirmCallArea(
 }
 
 /**
- * 对话气泡
+ * 对话气泡 - 浅色主题适配
  */
 @Composable
 fun ChatBubble(message: UiChatMessage) {
     val isUser = message.role == UiChatMessage.Role.USER
     val isSystem = message.role == UiChatMessage.Role.SYSTEM
-    val bgColor = when (message.role) {
-        UiChatMessage.Role.USER -> Color(0xFF2196F3)
-        UiChatMessage.Role.ASSISTANT -> Color(0xFF3D3D5C)
-        UiChatMessage.Role.SYSTEM -> Color(0xFF2D2D44)
+
+    // 系统消息不加背景，只用浅色小字
+    if (isSystem) {
+        Text(
+            text = message.content,
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+        )
+        return
     }
-    val textColor = if (isSystem) Color(0xFFAAAAAA) else Color.White
-    val alignment = when (message.role) {
-        UiChatMessage.Role.USER -> Alignment.End
-        UiChatMessage.Role.ASSISTANT -> Alignment.Start
-        UiChatMessage.Role.SYSTEM -> Alignment.CenterHorizontally
-    }
+
+    val bgColor = if (isUser) KinCallBubbleUser else KinCallBubbleAssistant
+    val textColor = if (isUser) Color.White else KinCallBubbleAssistantText
+    val alignment = if (isUser) Alignment.End else Alignment.Start
 
     Column(
         horizontalAlignment = alignment,
@@ -672,15 +752,17 @@ fun ChatBubble(message: UiChatMessage) {
             modifier = Modifier
                 .background(
                     color = bgColor,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(16.dp)
                 )
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         )
     }
 }
 
 /**
- * 麦克风按钮
+ * 麦克风按钮 - 带脉冲动画
+ *
+ * 录音时外圈不断扩大+淡出，给老人明确的录音状态反馈
  */
 @Composable
 fun MicButton(
@@ -688,8 +770,28 @@ fun MicButton(
     onClick: () -> Unit
 ) {
     val isListening = callState == CallState.Listening
-    val buttonColor = if (isListening) Color(0xFFFF4444) else Color(0xFF4CAF50)
-    val icon = if (isListening) "⏹" else "🎤"
+
+    // 脉冲动画
+    val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "pulse_scale"
+    )
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "pulse_alpha"
+    )
+
     val label = when (callState) {
         CallState.Idle, is CallState.CallError -> "按住说话"
         CallState.Listening -> "点击停止"
@@ -698,32 +800,52 @@ fun MicButton(
         CallState.Dialing -> "拨号中..."
     }
 
-    Button(
-        onClick = onClick,
-        modifier = Modifier.size(120.dp),
-        shape = CircleShape,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = buttonColor
-        ),
-        enabled = callState == CallState.Idle ||
-                callState == CallState.Listening ||
-                callState is CallState.CallError
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = icon,
-                fontSize = 40.sp
-            )
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(contentAlignment = Alignment.Center) {
+            // 脉冲环（仅录音时显示）
+            if (isListening) {
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .graphicsLayer {
+                            scaleX = pulseScale
+                            scaleY = pulseScale
+                            alpha = pulseAlpha
+                        }
+                        .background(
+                            color = KinCallListeningPulse,
+                            shape = CircleShape
+                        )
+                )
+            }
+
+            // 主按钮
+            Button(
+                onClick = onClick,
+                modifier = Modifier.size(120.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isListening) KinCallMicActive else KinCallMicIdle
+                ),
+                enabled = callState == CallState.Idle ||
+                        callState == CallState.Listening ||
+                        callState is CallState.CallError
+            ) {
+                Icon(
+                    imageVector = if (isListening) Icons.Default.Stop else Icons.Default.Mic,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = Color.White
+                )
+            }
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = label,
+            fontSize = 16.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    Text(
-        text = label,
-        fontSize = 16.sp,
-        color = Color(0xFFAAAAAA)
-    )
 }

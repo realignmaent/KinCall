@@ -1,16 +1,19 @@
 package com.example.kincall.ui.contact
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -125,7 +128,11 @@ fun ContactEditScreen(
                                 relation = option
                             }
                         },
-                        label = { Text(option) }
+                        label = { Text(option, fontSize = 15.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            selectedLabelColor = MaterialTheme.colorScheme.primary
+                        )
                     )
                 }
             }
@@ -211,13 +218,27 @@ fun ContactEditScreen(
                 }
             }
 
-            // 提示文案
-            Text(
-                text = "💡 老人平时怎么叫这个人？比如老大、大宝、儿子，都填进来。多填几个匹配更准。",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 18.sp
-            )
+            // 提示文案 - 用 Surface 卡片包裹
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)
+            ) {
+                Row(modifier = Modifier.padding(12.dp)) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "老人平时怎么叫这个人？比如老大、大宝、儿子，都填进来。多填几个匹配更准。",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 20.sp
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -285,9 +306,10 @@ fun ContactEditScreen(
                             onBack()
                         }
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text("保存")
+                    Text("保存", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
 

@@ -33,7 +33,8 @@ class ConversationManager(
     private val asrClient: AsrClient,
     private val speaker: Speaker,
     private val contactRepository: ContactRepository,
-    private val intentMatcher: IntentMatcher
+    private val intentMatcher: IntentMatcher,
+    private val chatHistoryDao: com.example.kincall.data.dao.ChatHistoryDao? = null
 ) {
     companion object {
         private const val TAG = "ConversationManager"
@@ -89,6 +90,7 @@ class ConversationManager(
     suspend fun processUserText(userText: String): ConversationResult {
         return try {
             Log.d(TAG, "处理用户文本: $userText")
+            saveHistory(userText = userText, state = "processing")
 
             if (userText.isBlank()) {
                 return ConversationResult.Error("没听清 您能再说一遍吗")
@@ -440,6 +442,33 @@ class ConversationManager(
         state = ConversationState()
         Log.d(TAG, "对话状态已重置")
     }
+
+    /**
+     * 保存聊天记录
+     */
+    private suspend fun saveHistory(
+        userText: String = "",
+        systemReply: String = "",
+        callSuccess: Boolean = false,
+        contactName: String? = null,
+        contactPhone: String? = null,
+        state: String = "idle"
+    ) {
+        try {
+            chatHistoryDao?.insert(
+                com.example.kincall.data.entity.ChatHistory(
+                    userText = userText,
+                    systemReply = systemReply,
+                    callSuccess = callSuccess,
+                    contactName = contactName,
+                    contactPhone = contactPhone,
+                    state = state
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "保存聊天记录失败: ${e.message}")
+        }
+    }
 }
 
 /**
@@ -490,4 +519,6 @@ sealed class ConversationResult {
      * @param message 错误信息，需要TTS播放给用户
      */
     data class Error(val message: String) : ConversationResult()
+
+
 }
